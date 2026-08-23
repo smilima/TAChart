@@ -46,7 +46,8 @@ requires
 
 contains
   TASubcomponentsEditor in '..\design\TASubcomponentsEditor.pas',
-  TASeriesEditor in '..\design\TASeriesEditor.pas',
+  TASeriesGallery in '..\design\TASeriesGallery.pas',
+  TASeriesEditorUnit in '..\design\TASeriesEditorUnit.pas' {SeriesGalleryForm},
   TAToolEditors in '..\design\TAToolEditors.pas',
   TATransformsEditor in '..\design\TATransformsEditor.pas',
   TASeriesPropEditors in '..\design\TASeriesPropEditors.pas',

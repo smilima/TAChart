@@ -39,7 +39,7 @@ uses
   TAChartImageList, TAChartExtentLink, TALegendPanel, TANavigation,
   TAChartAxis,
   // design time
-  TASeriesEditor, TAToolEditors, TATransformsEditor, TASeriesPropEditors,
+  TASeriesEditorUnit, TAToolEditors, TATransformsEditor, TASeriesPropEditors,
   TASubcomponentsEditor, TADataPointsEditor;
 
 procedure SafeRegisterClass(AClass: TPersistentClass);

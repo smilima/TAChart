@@ -118,7 +118,10 @@
         <DCCReference Include="designide.dcp"/>
         <DCCReference Include="TAChartRT.dcp"/>
         <DCCReference Include="..\design\TASubcomponentsEditor.pas"/>
-        <DCCReference Include="..\design\TASeriesEditor.pas"/>
+        <DCCReference Include="..\design\TASeriesGallery.pas"/>
+        <DCCReference Include="..\design\TASeriesEditorUnit.pas">
+            <Form>SeriesGalleryForm</Form>
+        </DCCReference>
         <DCCReference Include="..\design\TAToolEditors.pas"/>
         <DCCReference Include="..\design\TATransformsEditor.pas"/>
         <DCCReference Include="..\design\TASeriesPropEditors.pas"/>

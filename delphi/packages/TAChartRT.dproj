@@ -56,7 +56,7 @@
         <DCC_DcuOutput>..\.dcu\$(Platform)\$(Config)</DCC_DcuOutput>
         <DCC_DcpOutput>$(BDSCOMMONDIR)\Dcp</DCC_DcpOutput>
         <DCC_BplOutput>$(BDSCOMMONDIR)\Bpl</DCC_BplOutput>
-        <DCC_UnitSearchPath>..\src;..\compat;$(BDSCOMMONDIR)\Dcp\$(Platform);$(BDSCOMMONDIR)\Dcp;$(DCC_UnitSearchPath)</DCC_UnitSearchPath>
+        <DCC_UnitSearchPath>..\src;..\compat;$(BDSCOMMONDIR)\Dcp;$(DCC_UnitSearchPath)</DCC_UnitSearchPath>
         <DCC_IncludePath>..\compat;$(DCC_IncludePath)</DCC_IncludePath>
         <DCC_ResourcePath>..\compat;..\design;..\res;$(DCC_ResourcePath)</DCC_ResourcePath>
         <DCC_Description>TAChart for Delphi and C++Builder - runtime</DCC_Description>
@@ -78,12 +78,14 @@
         <SanitizedProjectName>TAChartRT</SanitizedProjectName>
     </PropertyGroup>
     <PropertyGroup Condition="'$(Base_Win64)'!=''">
+        <DCC_UnitSearchPath>$(BDSCOMMONDIR)\Dcp\Win64;$(DCC_UnitSearchPath)</DCC_UnitSearchPath>
         <DCC_Namespace>Winapi;System.Win;Data.Win;Datasnap.Win;Web.Win;Soap.Win;Xml.Win;Bde;$(DCC_Namespace)</DCC_Namespace>
         <BT_BuildType>Debug</BT_BuildType>
         <DCC_DcpOutput>$(BDSCOMMONDIR)\Dcp\Win64</DCC_DcpOutput>
         <DCC_BplOutput>$(BDSCOMMONDIR)\Bpl\Win64</DCC_BplOutput>
     </PropertyGroup>
     <PropertyGroup Condition="'$(Base_Win64x)'!=''">
+        <DCC_UnitSearchPath>$(BDSCOMMONDIR)\Dcp\Win64x;$(DCC_UnitSearchPath)</DCC_UnitSearchPath>
         <DCC_Namespace>Winapi;System.Win;Data.Win;Datasnap.Win;Web.Win;Soap.Win;Xml.Win;$(DCC_Namespace)</DCC_Namespace>
         <DCC_DcpOutput>$(BDSCOMMONDIR)\Dcp\Win64x</DCC_DcpOutput>
         <DCC_BplOutput>$(BDSCOMMONDIR)\Bpl\Win64x</DCC_BplOutput>

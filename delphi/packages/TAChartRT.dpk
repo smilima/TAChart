@@ -101,6 +101,7 @@ contains
   TADrawerOpenGL in '..\src\TADrawerOpenGL.pas',
   { OpenGL plumbing for the GPU-accelerated rendering path }
   TAGPU in '..\src\TAGPU.pas',
-  TAGLContext in '..\src\TAGLContext.pas';
+  TAGLContext in '..\src\TAGLContext.pas',
+  TAChartGL in '..\src\TAChartGL.pas';
 
 end.

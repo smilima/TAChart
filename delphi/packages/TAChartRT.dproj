@@ -164,6 +164,7 @@
         <DCCReference Include="..\src\TADrawerOpenGL.pas"/>
         <DCCReference Include="..\src\TAGPU.pas"/>
         <DCCReference Include="..\src\TAGLContext.pas"/>
+        <DCCReference Include="..\src\TAChartGL.pas"/>
         <BuildConfiguration Include="Base">
             <Key>Base</Key>
         </BuildConfiguration>

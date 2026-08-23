@@ -37,7 +37,7 @@ uses
   TARadialSeries, TAFuncSeries, TASources, TAIntervalSources, TADbSource,
   TAStyles, TATools, TADataTools, TATransformations, TAChartListbox, TAChartCombos,
   TAChartImageList, TAChartExtentLink, TALegendPanel, TANavigation,
-  TAChartAxis,
+  TAChartAxis, TAChartGL,
   // design time
   TASeriesEditorUnit, TAToolEditors, TATransformsEditor, TASeriesPropEditors,
   TASubcomponentsEditor, TADataPointsEditor;
@@ -168,6 +168,7 @@ begin
   SafeRegisterClass(TChartLegendPanel);
   SafeRegisterClass(TChartNavScrollBar);
   SafeRegisterClass(TChartNavPanel);
+  SafeRegisterClass(TTAChartGL);
 end;
 
 procedure Register;
@@ -180,6 +181,9 @@ begin
   // TTAChart, not TChart: TeeChart already registered TChart (dclfmxtee / dcltee).
   RegisterComponents(CHART_COMPONENT_IDE_PAGE, [
     TTAChart,
+    // Same chart, rendered on the GPU.  Falls back to GDI where there is no
+    // OpenGL, so it is safe to use in place of TTAChart.
+    TTAChartGL,
     TChartToolset,
     TChartAxisTransformations,
     TChartStyles,

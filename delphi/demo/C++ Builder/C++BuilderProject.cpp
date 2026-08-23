@@ -15,9 +15,6 @@
 #pragma hdrstop
 #include <tchar.h>
 #include <shellapi.h>
-// USEFORM alone leaves TMainForm incomplete; the self-test calls its
-// members, so the header is needed here too.
-#include "MainUnit.h"
 #include "TAGPU.hpp"
 //---------------------------------------------------------------------------
 //  Ask for the discrete GPU on a switchable-graphics laptop.
@@ -34,6 +31,13 @@ extern "C" {
 }
 //---------------------------------------------------------------------------
 USEFORM("MainUnit.cpp", MainForm);
+
+// After USEFORM, not before.  USEFORM expands to a DELPHICLASS attribute
+// declaration for TMainForm, and an attribute has to precede the class
+// definition it applies to - including the header first defines the class
+// and the attribute is then ignored (W6408).  The self-test calls members
+// of TMainForm, so the definition is still needed, just afterwards.
+#include "MainUnit.h"
 //---------------------------------------------------------------------------
 int WINAPI _tWinMain(HINSTANCE, HINSTANCE, LPTSTR, int)
 {

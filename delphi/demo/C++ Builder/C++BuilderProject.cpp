@@ -50,7 +50,17 @@ int WINAPI _tWinMain(HINSTANCE, HINSTANCE, LPTSTR, int)
 		for (int i = 1; i <= ParamCount(); ++i)
 			if (SameText(ParamStr(i), "--relaunched")) relaunched = true;
 
-		if (!relaunched && Tagpu::PreferBestGPU(Tagpu::HostExecutablePath()))
+		// Which adapter suits what this run will draw, rather than which is
+		// the most capable - with decimation on the most capable one is the
+		// slower of the two.  The workload has to be declared up front because
+		// Windows fixes the adapter before any chart exists.
+		Tagpu::TChartGPUWorkload workload;
+		workload.PointCount = (ParamCount() >= 2)
+			? StrToInt64Def(ParamStr(2), 1000000) : 1000000;
+		workload.Decimated = true;      // the demo starts with Decimate checked
+
+		if (!relaunched &&
+			Tagpu::ApplyWorkloadPreference(Tagpu::HostExecutablePath(), workload))
 		{
 			UnicodeString args;
 			for (int i = 1; i <= ParamCount(); ++i)

@@ -44,7 +44,7 @@ uses
   Winapi.Windows,
   System.Classes, System.Types,
   Vcl.Controls,
-  TADrawerOpenGL, TAGLContext, TAGraph, TAGUIConnector;
+  TAChartUtils, TADrawerOpenGL, TAGLContext, TAGraph, TAGUIConnector;
 
 type
 
@@ -57,6 +57,12 @@ type
     function GetGLContext: TChartGLContext;
     property GLContext: TChartGLContext read GetGLContext;
   end;
+
+  { Raised when a chart's context comes up on a different adapter than the one
+    it was previously using.  APrevious is empty the first time a context is
+    created, and ACurrent is empty when the chart has fallen back to GDI. }
+  TChartGPUChangedEvent = procedure(ASender: TObject;
+    const APrevious, ACurrent: string) of object;
 
   TChartGLConnector = class;
 
@@ -86,13 +92,25 @@ type
 
   { TTAChartGL }
 
+  { Broadcasts whenever any chart's adapter changes.  Subscribe a TListener to
+    be told without holding a reference to a particular chart; the sender is
+    the chart that changed. }
+  function ChartGPUBroadcaster: TBroadcaster;
+
+type
   TTAChartGL = class(TTAChart)
   strict private
     FGLConnector: TChartGLConnector;
     FGLContext: TChartGLContext;
     FUseOpenGL: Boolean;
+    FActiveRenderer: String;
+    { Distinguishes "no adapter yet" from "the adapter is GDI", which are both
+      an empty renderer string but only one of which is a change. }
+    FAdapterNoted: Boolean;
+    FOnGPUChanged: TChartGPUChangedEvent;
     procedure SetUseOpenGL(AValue: Boolean);
     procedure RebuildContext;
+    procedure NoteAdapter(const ARenderer: String);
   protected
     procedure CreateParams(var Params: TCreateParams); override;
     procedure CreateWnd; override;
@@ -105,7 +123,16 @@ type
     // True when this chart really is rendering through OpenGL.  UseOpenGL is
     // what was asked for; this is what was achieved.
     function OpenGLActive: Boolean;
+    { The adapter currently drawing this chart, as OpenGL names it, or '' when
+      it has fallen back to GDI.  Read it at any time; OnGPUChanged tells you
+      when it becomes something else. }
+    property ActiveRenderer: String read FActiveRenderer;
   published
+    { Fires when the adapter behind this chart changes - a handle recreation
+      that brings up a context on a different GPU, or OpenGL being switched
+      off.  Not fired for the first context, which is not a change. }
+    property OnGPUChanged: TChartGPUChangedEvent
+      read FOnGPUChanged write FOnGPUChanged;
     // Set before the handle is created - changing it recreates the handle.
     property UseOpenGL: Boolean read FUseOpenGL write SetUseOpenGL default true;
   end;
@@ -113,8 +140,17 @@ type
 implementation
 
 uses
-  System.SysUtils,
-  TAChartUtils;
+  System.SysUtils;
+
+var
+  VGPUBroadcaster: TBroadcaster = nil;
+
+function ChartGPUBroadcaster: TBroadcaster;
+begin
+  if VGPUBroadcaster = nil then
+    VGPUBroadcaster := TBroadcaster.Create;
+  Result := VGPUBroadcaster;
+end;
 
 { TChartGLDrawer }
 
@@ -217,6 +253,34 @@ begin
   else
     // nil makes TAChart use its own canvas connector.
     GUIConnector := nil;
+
+  if FGLContext <> nil then
+    NoteAdapter(FGLContext.Renderer)
+  else
+    NoteAdapter('');
+end;
+
+procedure TTAChartGL.NoteAdapter(const ARenderer: String);
+var
+  previous: String;
+begin
+  if FAdapterNoted and (ARenderer = FActiveRenderer) then exit;
+  previous := FActiveRenderer;
+  FActiveRenderer := ARenderer;
+  { The first context is not a change - there was nothing to change from -
+    and reporting it would make every chart fire on creation.  Tested with a
+    flag rather than an empty previous renderer, because falling back to GDI
+    also leaves that empty, and coming back from GDI to a GPU is a change
+    worth reporting. }
+  if not FAdapterNoted then begin
+    FAdapterNoted := true;
+    exit;
+  end;
+  if Assigned(FOnGPUChanged) then
+    FOnGPUChanged(Self, previous, ARenderer);
+  { Anything else that wants to know - other charts, a status bar - subscribes
+    a TListener to this rather than needing a reference to the chart. }
+  ChartGPUBroadcaster.Broadcast(Self);
 end;
 
 function TTAChartGL.OpenGLActive: Boolean;
@@ -233,5 +297,10 @@ begin
   if HandleAllocated then
     RecreateWnd;
 end;
+
+initialization
+
+finalization
+  FreeAndNil(VGPUBroadcaster);
 
 end.

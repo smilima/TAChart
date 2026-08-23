@@ -44,7 +44,7 @@ static double NowMs()
 
 //---------------------------------------------------------------------------
 __fastcall TMainForm::TMainForm(TComponent* Owner)
-	: TForm(Owner), FAnimPos(0), FPhase(0), FFrameMs(0), FRenderMs(-1), FLoadMs(0)
+	: TForm(Owner), FAnimPos(0), FPhase(0), FFrameMs(0), FRenderMs(-1), FLoadMs(0), FGpuChanges(0)
 {
 }
 
@@ -226,6 +226,9 @@ void __fastcall TMainForm::UpdateStats()
 //---------------------------------------------------------------------------
 void __fastcall TMainForm::FormShow(TObject *Sender)
 {
+	// Told whenever the adapter behind the chart changes, so anything on
+	// screen that names it can be brought up to date.
+	TAChartGL1->OnGPUChanged = ChartGPUChanged;
 	TAChartGL1->Title->Text->Text = "TAChart on the GPU";
 	Series->Title = "fast line";
 	Series->LinePen->Color = clNavy;
@@ -240,6 +243,22 @@ void __fastcall TMainForm::FormShow(TObject *Sender)
 	// interactive default rather than loading twice.
 	if (!((ParamCount() >= 1) && SameText(ParamStr(1), "--selftest")))
 		LoadSamples(SelectedCount());
+}
+
+//---------------------------------------------------------------------------
+void __fastcall TMainForm::ChartGPUChanged(TObject *Sender,
+	const UnicodeString APrevious, const UnicodeString ACurrent)
+{
+	// A changed adapter means a new context, so anything the series had on
+	// the old GPU is gone; TFastLineSeries notices that its vertex buffer
+	// belonged to the previous context and rebuilds it on the next draw.
+	++FGpuChanges;
+	FGpuChangeLog = FGpuChangeLog + "[" +
+		(APrevious.IsEmpty() ? UnicodeString("GDI") : APrevious) + " -> " +
+		(ACurrent.IsEmpty()  ? UnicodeString("GDI") : ACurrent)  + "] ";
+	Caption = "TAChart OpenGL demo - " +
+		(ACurrent.IsEmpty() ? UnicodeString("GDI") : ACurrent);
+	UpdateStats();
 }
 
 //---------------------------------------------------------------------------
@@ -374,6 +393,19 @@ void __fastcall TMainForm::SelfTest(int ACount, const UnicodeString AFile)
 	log->Add("animRenderMs   = " + FormatFloat("0.000", animMs) +
 		"   (ValuesChanged + redraw, averaged, vsync off)");
 	log->Add("loadMs         = " + FormatFloat("0", FLoadMs));
+	// Adapter-change event.  Switching OpenGL off drops the context, which
+	// from the chart's point of view is the adapter changing to GDI; turning
+	// it back on is a second change.  Both should be reported.
+	FGpuChanges = 0;
+	FGpuChangeLog = "";
+	TAChartGL1->UseOpenGL = false;
+	Application->ProcessMessages();
+	TAChartGL1->UseOpenGL = true;
+	Application->ProcessMessages();
+	log->Add("gpuChangeEvents= " + IntToStr(FGpuChanges) + "   (expect 2)");
+	log->Add("gpuChangeLog   = " + FGpuChangeLog);
+	log->Add("activeRenderer = " + TAChartGL1->ActiveRenderer);
+
 	log->SaveToFile(AFile);
 }
 //---------------------------------------------------------------------------

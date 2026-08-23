@@ -45,12 +45,16 @@ __published:	// IDE-managed Components
 	void __fastcall chkDecimateClick(TObject *Sender);
 	void __fastcall chkAnimateClick(TObject *Sender);
 	void __fastcall chkOpenGLClick(TObject *Sender);
+	void __fastcall ChartGPUChanged(TObject *Sender,
+		const UnicodeString APrevious, const UnicodeString ACurrent);
 private:	// User declarations
 	int FAnimPos;			// next sample span the animation will move
 	double FPhase;			// animation phase, so Y is recomputed not drifted
 	double FFrameMs;		// last measured frame time, incl. swap
 	double FRenderMs;		// last measured render cost, vsync off
 	double FLoadMs;			// time the last load took
+	int FGpuChanges;		// OnGPUChanged firings, for the self-test
+	UnicodeString FGpuChangeLog;
 
 	void __fastcall LoadSamples(int ACount);
 	void __fastcall Redraw();

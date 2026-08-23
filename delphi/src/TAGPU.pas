@@ -111,6 +111,53 @@ function RendererMatchesAdapter(const AGLRenderer: string;
   project's output path rather than setting a preference for bds.exe. }
 function PreferBestGPU(const AExePath: string): Boolean;
 
+type
+  { What the application intends to draw.  The adapter that suits it is not
+    always the most capable one - see PreferenceForWorkload. }
+  TChartGPUWorkload = record
+    PointCount: Int64;   // the largest series the application will draw
+    Decimated: Boolean;  // whether that series reduces before drawing
+  end;
+
+var
+  { Point counts at or above which the discrete adapter is the faster choice.
+    Measured on a switchable-graphics laptop - an RTX 5050 against the Intel
+    part it shares the display with - vsync off and the GPU drained,
+    milliseconds per frame, discrete / integrated:
+
+                     full detail            decimated
+        100,000    3.42 / 2.46  integrated  3.79 / 1.46  integrated
+      1,000,000    1.50 / 1.59  tie         1.60 / 1.23  integrated
+      5,000,000    2.84 / 5.55  discrete    1.42 / 1.23  integrated
+     10,000,000    5.26 / 10.88 discrete    2.85 / 3.33  discrete
+
+    Drawing every vertex is real work, and the discrete adapter takes the lead
+    somewhere between one and five million.  A decimated series is a few
+    thousand vertices however long it is, so there is nothing for a larger GPU
+    to do, and on a laptop the finished frame still has to be copied back to
+    the display the integrated adapter owns - which is why the integrated one
+    stays ahead there until the reduction itself becomes the expensive part.
+
+    Variables rather than constants, so an application on different hardware
+    can retune them without rebuilding TAChart. }
+  ChartGPUFullDetailThreshold: Int64 = 2000000;
+  ChartGPUDecimatedThreshold: Int64 = 8000000;
+
+{ The adapter class that suits AWorkload.  Deliberately not the same question
+  as BestAdapter, which answers "which is the most capable": in the
+  configuration most charts run in - decimation on - the most capable adapter
+  is the slower one. }
+function PreferenceForWorkload(
+  const AWorkload: TChartGPUWorkload): TChartGPUPreference;
+
+{ Records the preference PreferenceForWorkload asks for.  Returns True when it
+  had to be changed, which also means the running process is still on the
+  previous adapter: Windows resolves this at process start, so only the next
+  launch picks it up.  An application that wants the choice to take effect has
+  to restart itself; it cannot be changed from inside. }
+function ApplyWorkloadPreference(const AExePath: string;
+  const AWorkload: TChartGPUWorkload): Boolean;
+
 function GetGPUPreference(const AExePath: string): TChartGPUPreference;
 
 { Writes (or clears, for gpSystemDefault) the preference for AExePath under
@@ -341,6 +388,47 @@ begin
   if (R = '') or (D = '') then
     Exit;
   Result := (Pos(D, R) > 0) or (Pos(R, D) > 0);
+end;
+
+//------------------------------------------------------------------------------
+function PreferenceForWorkload(
+  const AWorkload: TChartGPUWorkload): TChartGPUPreference;
+var
+  Threshold: Int64;
+begin
+  { One adapter means nothing to ask for, and recording a preference would
+    only mislead. }
+  if not HasSwitchableGraphics then
+  begin
+    Result := gpSystemDefault;
+    Exit;
+  end;
+
+  if AWorkload.Decimated then
+    Threshold := ChartGPUDecimatedThreshold
+  else
+    Threshold := ChartGPUFullDetailThreshold;
+
+  if AWorkload.PointCount >= Threshold then
+    Result := gpHighPerformance
+  else
+    Result := gpPowerSaving;
+end;
+
+//------------------------------------------------------------------------------
+function ApplyWorkloadPreference(const AExePath: string;
+  const AWorkload: TChartGPUWorkload): Boolean;
+var
+  Wanted: TChartGPUPreference;
+begin
+  Result := false;
+  Wanted := PreferenceForWorkload(AWorkload);
+  if Wanted = gpSystemDefault then
+    Exit;
+  if GetGPUPreference(AExePath) = Wanted then
+    Exit;
+  SetGPUPreference(AExePath, Wanted);
+  Result := true;
 end;
 
 //------------------------------------------------------------------------------

@@ -59,6 +59,11 @@ type
     data: Pointer); stdcall;
   TglDeleteBuffersProc = procedure(n: Integer; buffers: PCardinal); stdcall;
 
+  { WGL_EXT_swap_control.  Not part of OpenGL proper, so like the buffer
+    entry points these are resolved against the live context. }
+  TwglSwapIntervalEXTProc = function(interval: Integer): BOOL; stdcall;
+  TwglGetSwapIntervalEXTProc = function: Integer; stdcall;
+
   { Display lists plus metrics for one cached font. }
   TChartGLFontData = class
   public
@@ -99,8 +104,15 @@ type
     FBufferData: TglBufferDataProc;
     FBufferSubData: TglBufferSubDataProc;
     FDeleteBuffers: TglDeleteBuffersProc;
+    FSwapControlChecked: Boolean;
+    FSwapIntervalProc: TwglSwapIntervalEXTProc;
+    FGetSwapIntervalProc: TwglGetSwapIntervalEXTProc;
     procedure LoadVBOEntryPoints;
+    procedure LoadSwapControlEntryPoints;
     function GetHasVBO: Boolean;
+    function GetHasSwapControl: Boolean;
+    function GetSwapInterval: Integer;
+    procedure SetSwapInterval(AValue: Integer);
     function FontKey(AFont: TFont): string;
     function AcquireFont(AFont: TFont): TChartGLFontData;
     function AcquireTextTexture(AFont: TFont; const S: string): TChartGLTextTexture;
@@ -152,6 +164,21 @@ type
     { Replaces a sub-range without reallocating — used for partial updates. }
     procedure ArrayBufferSubData(AOffset, ASize: NativeInt; AData: Pointer);
     property HasVBO: Boolean read GetHasVBO;
+
+    { ---- Swap control and timing ----
+      By default SwapBuffers waits for the display to refresh, which is what
+      an interactive chart wants but makes it useless to time: once drawing
+      is quicker than the refresh, every frame measures the wait instead.
+
+      Setting SwapInterval to 0 turns that off, and Finish blocks until the
+      GPU has actually finished the work rather than merely accepted it, so
+      the two together let a caller measure what drawing really costs.  Put
+      SwapInterval back to 1 afterwards - leaving it at 0 spins the GPU
+      redrawing frames nobody sees. }
+    property HasSwapControl: Boolean read GetHasSwapControl;
+    property SwapInterval: Integer read GetSwapInterval write SetSwapInterval;
+    { Blocks until every command issued so far has completed. }
+    procedure Finish;
 
     property DC: HDC read FDC;
     property RC: HGLRC read FRC;
@@ -428,6 +455,56 @@ begin
   FHasVBO := Assigned(FGenBuffers) and Assigned(FBindBuffer) and
     Assigned(FBufferData) and Assigned(FBufferSubData) and
     Assigned(FDeleteBuffers);
+end;
+
+//------------------------------------------------------------------------------
+procedure TChartGLContext.LoadSwapControlEntryPoints;
+begin
+  if FSwapControlChecked then
+    Exit;
+  FSwapControlChecked := True;
+  { wglGetProcAddress only answers for the current context. }
+  if wglGetCurrentContext <> FRC then
+    if not MakeCurrent then
+      Exit;
+  FSwapIntervalProc := TwglSwapIntervalEXTProc(
+    wglGetProcAddress('wglSwapIntervalEXT'));
+  FGetSwapIntervalProc := TwglGetSwapIntervalEXTProc(
+    wglGetProcAddress('wglGetSwapIntervalEXT'));
+end;
+
+//------------------------------------------------------------------------------
+function TChartGLContext.GetHasSwapControl: Boolean;
+begin
+  LoadSwapControlEntryPoints;
+  Result := Assigned(FSwapIntervalProc);
+end;
+
+//------------------------------------------------------------------------------
+function TChartGLContext.GetSwapInterval: Integer;
+begin
+  LoadSwapControlEntryPoints;
+  if Assigned(FGetSwapIntervalProc) then
+    Result := FGetSwapIntervalProc
+  else
+    Result := -1;    // unknown: the driver does not expose the extension
+end;
+
+//------------------------------------------------------------------------------
+procedure TChartGLContext.SetSwapInterval(AValue: Integer);
+begin
+  LoadSwapControlEntryPoints;
+  if Assigned(FSwapIntervalProc) then
+    FSwapIntervalProc(AValue);
+end;
+
+//------------------------------------------------------------------------------
+procedure TChartGLContext.Finish;
+begin
+  if wglGetCurrentContext <> FRC then
+    if not MakeCurrent then
+      Exit;
+  glFinish;
 end;
 
 //------------------------------------------------------------------------------

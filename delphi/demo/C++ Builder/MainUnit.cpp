@@ -44,7 +44,7 @@ static double NowMs()
 
 //---------------------------------------------------------------------------
 __fastcall TMainForm::TMainForm(TComponent* Owner)
-	: TForm(Owner), FAnimPos(0), FPhase(0), FFrameMs(0), FLoadMs(0)
+	: TForm(Owner), FAnimPos(0), FPhase(0), FFrameMs(0), FRenderMs(-1), FLoadMs(0)
 {
 }
 
@@ -134,6 +134,44 @@ double __fastcall TMainForm::MeasureRepaints(int ACount)
 }
 
 //---------------------------------------------------------------------------
+double __fastcall TMainForm::MeasureRenderCost(int ACount)
+{
+	FRenderMs = -1;
+	if (!TAChartGL1->OpenGLActive() || TAChartGL1->GLContext == NULL)
+		return FRenderMs;
+	TChartGLContext *gl = TAChartGL1->GLContext;
+	if (!gl->HasSwapControl)
+		return FRenderMs;          // would just be measuring vsync again
+
+	int previous = gl->SwapInterval;
+	gl->SwapInterval = 0;                       // stop waiting for refresh
+	try {
+		for (int i = 0; i < 3; ++i) {           // warm-up, not measured
+			TAChartGL1->Repaint();
+			Application->ProcessMessages();
+		}
+		gl->Finish();
+		double t0 = NowMs();
+		for (int i = 0; i < ACount; ++i) {
+			TAChartGL1->Repaint();
+			Application->ProcessMessages();
+		}
+		// Once, at the end: the queue is drained here rather than stalling
+		// the pipeline every frame, which would measure the stall.
+		gl->Finish();
+		FRenderMs = (NowMs() - t0) / ACount;
+	}
+	catch (...) {
+		gl->SwapInterval = (previous >= 0) ? previous : 1;
+		throw;
+	}
+	// Leaving vsync off would spin the GPU on frames nobody sees.
+	gl->SwapInterval = (previous >= 0) ? previous : 1;
+	UpdateStats();
+	return FRenderMs;
+}
+
+//---------------------------------------------------------------------------
 void __fastcall TMainForm::UpdateStats()
 {
 	Tagpu::TChartAdapterInfo best;
@@ -179,6 +217,8 @@ void __fastcall TMainForm::UpdateStats()
 		" ("                 + reduction + ")" +
 		"      vertex buffer: " + vbo + "\r\n" +
 		"frame "             + FormatFloat("0.00", FFrameMs) + " ms (incl. swap)" +
+		"      render "      + (FRenderMs < 0 ? UnicodeString("n/a")
+							: FormatFloat("0.000", FRenderMs) + " ms (vsync off)") +
 		"      last load "   + FormatFloat("0", FLoadMs) + " ms" +
 		"      X ascending: " + UnicodeString(Series->XAscending ? "yes" : "no");
 }
@@ -269,6 +309,7 @@ void __fastcall TMainForm::SelfTest(int ACount, const UnicodeString AFile)
 	chkDecimate->Checked = false;
 	Series->Decimate = false;
 	MeasureRepaints(20);
+	double fullRender = MeasureRenderCost(50);
 	int fullVerts = Series->LastDrawnVertexCount;
 	double fullMs = FFrameMs;
 	bool vbo = Series->UsingVBO();
@@ -276,12 +317,39 @@ void __fastcall TMainForm::SelfTest(int ACount, const UnicodeString AFile)
 	chkDecimate->Checked = true;
 	Series->Decimate = true;
 	MeasureRepaints(20);
+	double decRender = MeasureRenderCost(50);
 	int decVerts = Series->LastDrawnVertexCount;
 	double decMs = FFrameMs;
 
-	// One animation step, the case ValuesChanged exists for.
-	TimerTimer(NULL);
-	double animMs = FFrameMs;
+	// Animation, the case ValuesChanged exists for, measured the same way as
+	// the render cost above.  A single step is not a measurement: timed that
+	// way this figure moved between 4 and 43 ms across runs of the same build.
+	double animMs = -1;
+	if (TAChartGL1->OpenGLActive() && TAChartGL1->GLContext != NULL &&
+		TAChartGL1->GLContext->HasSwapControl)
+	{
+		TChartGLContext *gl = TAChartGL1->GLContext;
+		int previous = gl->SwapInterval;
+		gl->SwapInterval = 0;
+		try {
+			for (int i = 0; i < 3; ++i) TimerTimer(NULL);   // warm-up
+			gl->Finish();
+			double t0 = NowMs();
+			const int STEPS = 30;
+			for (int i = 0; i < STEPS; ++i) TimerTimer(NULL);
+			gl->Finish();
+			animMs = (NowMs() - t0) / STEPS;
+		}
+		catch (...) {
+			gl->SwapInterval = (previous >= 0) ? previous : 1;
+			throw;
+		}
+		gl->SwapInterval = (previous >= 0) ? previous : 1;
+	}
+	else {
+		TimerTimer(NULL);
+		animMs = FFrameMs;      // vsync-bound; no swap control to turn it off
+	}
 
 	log->Add("openGLActive   = " + UnicodeString(
 		TAChartGL1->OpenGLActive() ? "yes" : "no"));
@@ -299,8 +367,12 @@ void __fastcall TMainForm::SelfTest(int ACount, const UnicodeString AFile)
 	log->Add("fullFrameMs    = " + FormatFloat("0.00", fullMs) +
 		"   (wall clock incl. SwapBuffers; vsync-bound once under ~8 ms)");
 	log->Add("decVertices    = " + IntToStr(decVerts));
+	log->Add("fullRenderMs   = " + FormatFloat("0.000", fullRender) +
+		"   (vsync off, GPU drained - what drawing actually costs)");
+	log->Add("decRenderMs    = " + FormatFloat("0.000", decRender));
 	log->Add("decFrameMs     = " + FormatFloat("0.00", decMs));
-	log->Add("animFrameMs    = " + FormatFloat("0.00", animMs));
+	log->Add("animRenderMs   = " + FormatFloat("0.000", animMs) +
+		"   (ValuesChanged + redraw, averaged, vsync off)");
 	log->Add("loadMs         = " + FormatFloat("0", FLoadMs));
 	log->SaveToFile(AFile);
 }

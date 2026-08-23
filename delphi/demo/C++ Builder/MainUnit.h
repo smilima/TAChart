@@ -48,7 +48,8 @@ __published:	// IDE-managed Components
 private:	// User declarations
 	int FAnimPos;			// next sample span the animation will move
 	double FPhase;			// animation phase, so Y is recomputed not drifted
-	double FFrameMs;		// last measured repaint time
+	double FFrameMs;		// last measured frame time, incl. swap
+	double FRenderMs;		// last measured render cost, vsync off
 	double FLoadMs;			// time the last load took
 
 	void __fastcall LoadSamples(int ACount);
@@ -57,6 +58,11 @@ private:	// User declarations
 	// frame after a context comes up pays driver warm-up, which on a discrete
 	// adapter is large enough to make it look slower than the integrated one.
 	double __fastcall MeasureRepaints(int ACount);
+	// What drawing actually costs: vsync off so SwapBuffers stops blocking,
+	// and a Finish each frame so the GPU has really done the work rather
+	// than merely accepted it.  Returns -1 when the driver has no swap
+	// control, since without it the figure would still be vsync.
+	double __fastcall MeasureRenderCost(int ACount);
 	void __fastcall UpdateStats();
 	int __fastcall SelectedCount();
 public:		// User declarations

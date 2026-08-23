@@ -98,6 +98,9 @@ contains
   TAPrint in '..\src\TAPrint.pas',
   TADrawerWMF in '..\src\TADrawerWMF.pas',
   TADrawerSVG in '..\src\TADrawerSVG.pas',
-  TADrawerOpenGL in '..\src\TADrawerOpenGL.pas';
+  TADrawerOpenGL in '..\src\TADrawerOpenGL.pas',
+  { OpenGL plumbing for the GPU-accelerated rendering path }
+  TAGPU in '..\src\TAGPU.pas',
+  TAGLContext in '..\src\TAGLContext.pas';
 
 end.

@@ -1,0 +1,48 @@
+﻿<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+    <PropertyGroup>
+        <ProjectGuid>{4FB99096-E182-436D-BAD5-FD70FA88129D}</ProjectGuid>
+    </PropertyGroup>
+    <ItemGroup>
+        <Projects Include="TAChartRT.dproj">
+            <Dependencies/>
+        </Projects>
+        <Projects Include="TAChartDT.dproj">
+            <Dependencies/>
+        </Projects>
+    </ItemGroup>
+    <ProjectExtensions>
+        <Borland.Personality>Default.Personality.12</Borland.Personality>
+        <Borland.ProjectType/>
+        <BorlandProject>
+            <Default.Personality/>
+        </BorlandProject>
+    </ProjectExtensions>
+    <Target Name="TAChartRT">
+        <MSBuild Projects="TAChartRT.dproj"/>
+    </Target>
+    <Target Name="TAChartRT:Clean">
+        <MSBuild Projects="TAChartRT.dproj" Targets="Clean"/>
+    </Target>
+    <Target Name="TAChartRT:Make">
+        <MSBuild Projects="TAChartRT.dproj" Targets="Make"/>
+    </Target>
+    <Target Name="TAChartDT">
+        <MSBuild Projects="TAChartDT.dproj"/>
+    </Target>
+    <Target Name="TAChartDT:Clean">
+        <MSBuild Projects="TAChartDT.dproj" Targets="Clean"/>
+    </Target>
+    <Target Name="TAChartDT:Make">
+        <MSBuild Projects="TAChartDT.dproj" Targets="Make"/>
+    </Target>
+    <Target Name="Build">
+        <CallTarget Targets="TAChartRT;TAChartDT"/>
+    </Target>
+    <Target Name="Clean">
+        <CallTarget Targets="TAChartRT:Clean;TAChartDT:Clean"/>
+    </Target>
+    <Target Name="Make">
+        <CallTarget Targets="TAChartRT:Make;TAChartDT:Make"/>
+    </Target>
+    <Import Project="$(BDS)\Bin\CodeGear.Group.Targets" Condition="Exists('$(BDS)\Bin\CodeGear.Group.Targets')"/>
+</Project>

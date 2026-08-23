@@ -1,0 +1,15 @@
+# Build output
+.bpl/
+.dcp/
+.dcu/
+*.dcu
+*.bpl
+*.dcp
+*.exe
+*.map
+*.drc
+*.identcache
+*.local
+*.tvsconfig
+demo/Win32/
+demo/Win64/

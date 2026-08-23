@@ -1,0 +1,103 @@
+{
+  TAChart for Delphi / VCL -- runtime package.
+
+  This package holds everything an application needs at run time and is the one
+  you redistribute.  The matching design-time package is TAChartDT.
+}
+
+package TAChartRT;
+
+{$R *.res}
+{$IFDEF IMPLICITBUILDING This IFDEF should not be used by users}
+{$ALIGN 8}
+{$ASSERTIONS ON}
+{$BOOLEVAL OFF}
+{$DEBUGINFO OFF}
+{$EXTENDEDSYNTAX ON}
+{$IMPORTEDDATA ON}
+{$IOCHECKS ON}
+{$LOCALSYMBOLS ON}
+{$LONGSTRINGS ON}
+{$OPENSTRINGS ON}
+{$OPTIMIZATION ON}
+{$OVERFLOWCHECKS OFF}
+{$RANGECHECKS OFF}
+{$REFERENCEINFO ON}
+{$SAFEDIVIDE OFF}
+{$STACKFRAMES OFF}
+{$TYPEDADDRESS OFF}
+{$VARSTRINGCHECKS ON}
+{$WRITEABLECONST OFF}
+{$MINENUMSIZE 1}
+{$IMAGEBASE $400000}
+{$DEFINE RELEASE}
+{$ENDIF IMPLICITBUILDING}
+{$DESCRIPTION 'TAChart for Delphi and C++Builder - runtime'}
+{$LIBSUFFIX AUTO}
+{$OBJEXPORTALL ON}
+{$RUNONLY}
+{$IMPLICITBUILD OFF}
+
+requires
+  rtl,
+  vcl,
+  dbrtl,
+  vclimg;
+
+contains
+  { compatibility layer }
+  TAFPTypes in '..\compat\TAFPTypes.pas',
+  TALCLCompat in '..\compat\TALCLCompat.pas',
+  TANumLib in '..\compat\TANumLib.pas',
+  { foundation }
+  TAChartStrConsts in '..\src\TAChartStrConsts.pas',
+  TAChartUtils in '..\src\TAChartUtils.pas',
+  TAMath in '..\src\TAMath.pas',
+  TAGeometry in '..\src\TAGeometry.pas',
+  TAFitUtils in '..\src\TAFitUtils.pas',
+  TADrawUtils in '..\src\TADrawUtils.pas',
+  TATypes in '..\src\TATypes.pas',
+  TAEnumerators in '..\src\TAEnumerators.pas',
+  { data sources }
+  TACustomSource in '..\src\TACustomSource.pas',
+  TASources in '..\src\TASources.pas',
+  TAIntervalSources in '..\src\TAIntervalSources.pas',
+  TADbSource in '..\src\TADbSource.pas',
+  TAAnimatedSource in '..\src\TAAnimatedSource.pas',
+  TAAxisSource in '..\src\TAAxisSource.pas',
+  { chart elements }
+  TATextElements in '..\src\TATextElements.pas',
+  TAChartAxisUtils in '..\src\TAChartAxisUtils.pas',
+  TAChartAxis in '..\src\TAChartAxis.pas',
+  TATransformations in '..\src\TATransformations.pas',
+  TALegend in '..\src\TALegend.pas',
+  TAStyles in '..\src\TAStyles.pas',
+  { series }
+  TACustomSeries in '..\src\TACustomSeries.pas',
+  TASeries in '..\src\TASeries.pas',
+  TAMultiSeries in '..\src\TAMultiSeries.pas',
+  TARadialSeries in '..\src\TARadialSeries.pas',
+  TACustomFuncSeries in '..\src\TACustomFuncSeries.pas',
+  TAFuncSeries in '..\src\TAFuncSeries.pas',
+  { chart and drawing back-end }
+  TAGraph in '..\src\TAGraph.pas',
+  TAGUIConnector in '..\src\TAGUIConnector.pas',
+  TADrawerCanvas in '..\src\TADrawerCanvas.pas',
+  { interaction }
+  TATools in '..\src\TATools.pas',
+  TADataTools in '..\src\TADataTools.pas',
+  TANavigation in '..\src\TANavigation.pas',
+  { auxiliary components }
+  TAChartListbox in '..\src\TAChartListbox.pas',
+  TAChartCombos in '..\src\TAChartCombos.pas',
+  TAChartImageList in '..\src\TAChartImageList.pas',
+  TAChartExtentLink in '..\src\TAChartExtentLink.pas',
+  TALegendPanel in '..\src\TALegendPanel.pas',
+  TAChartRegistration in '..\src\TAChartRegistration.pas',
+  { extra drawing back-ends }
+  TAPrint in '..\src\TAPrint.pas',
+  TADrawerWMF in '..\src\TADrawerWMF.pas',
+  TADrawerSVG in '..\src\TADrawerSVG.pas',
+  TADrawerOpenGL in '..\src\TADrawerOpenGL.pas';
+
+end.

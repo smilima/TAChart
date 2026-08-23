@@ -44,7 +44,7 @@ static double NowMs()
 
 //---------------------------------------------------------------------------
 __fastcall TMainForm::TMainForm(TComponent* Owner)
-	: TForm(Owner), FAnimPos(0), FPhase(0), FFrameMs(0), FRenderMs(-1), FLoadMs(0), FGpuChanges(0)
+	: TForm(Owner), FAnimPos(0), FPhase(0), FFrameMs(0), FRenderMs(-1), FLoadMs(0), FGpuChanges(0), FAnimSpan(0)
 {
 }
 
@@ -301,7 +301,7 @@ void __fastcall TMainForm::TimerTimer(TObject *Sender)
 	int n = Series->SampleCount;
 	if (n < 2) return;
 
-	int span = std::max(1, n / 200);
+	int span = (FAnimSpan > 0) ? std::min(FAnimSpan, n) : std::max(1, n / 200);
 	if (FAnimPos + span > n) {
 		FAnimPos = 0;
 		FPhase += 0.35;
@@ -320,8 +320,10 @@ void __fastcall TMainForm::TimerTimer(TObject *Sender)
 //---------------------------------------------------------------------------
 
 //---------------------------------------------------------------------------
-void __fastcall TMainForm::SelfTest(int ACount, const UnicodeString AFile)
+void __fastcall TMainForm::SelfTest(int ACount, const UnicodeString AFile,
+	int AAnimSpan)
 {
+	FAnimSpan = AAnimSpan;
 	std::unique_ptr<TStringList> log(new TStringList());
 	LoadSamples(ACount);
 
@@ -353,6 +355,9 @@ void __fastcall TMainForm::SelfTest(int ACount, const UnicodeString AFile)
 		try {
 			for (int i = 0; i < 3; ++i) TimerTimer(NULL);   // warm-up
 			gl->Finish();
+			// Counted over the measured steps only, so warm-up does not
+			// distort the picture of how the reduction is maintained.
+			Series->ResetDecimationCounters();
 			double t0 = NowMs();
 			const int STEPS = 30;
 			for (int i = 0; i < STEPS; ++i) TimerTimer(NULL);
@@ -392,6 +397,14 @@ void __fastcall TMainForm::SelfTest(int ACount, const UnicodeString AFile)
 	log->Add("decFrameMs     = " + FormatFloat("0.00", decMs));
 	log->Add("animRenderMs   = " + FormatFloat("0.000", animMs) +
 		"   (ValuesChanged + redraw, averaged, vsync off)");
+	log->Add("animRebuilds   = " + IntToStr(Series->DecimationFullRebuilds) +
+		"   (full reduction rebuilds during the animation - want 0)");
+	log->Add("animPatches    = " + IntToStr(Series->DecimationPatches));
+	log->Add("animSpan       = " + IntToStr((FAnimSpan > 0) ? FAnimSpan
+		: std::max(1, Series->SampleCount / 200)) + "   (samples moved per tick)");
+	log->Add("animScanned    = " + IntToStr(Series->DecimationSamplesScanned) +
+		"   (samples the reduction read; " +
+		IntToStr(Series->SampleCount) + " would be all of them, once)");
 	log->Add("loadMs         = " + FormatFloat("0", FLoadMs));
 	// Adapter-change event.  Switching OpenGL off drops the context, which
 	// from the chart's point of view is the adapter changing to GDI; turning

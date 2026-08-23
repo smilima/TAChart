@@ -123,6 +123,10 @@ type
     FDecDirtyLo, FDecDirtyHi: Integer;  // columns needing recompute, -1 = none
     FVisFirst, FVisLast: Integer;
     FLastDrawn: Integer;
+    { Diagnostics - how the reduction has been kept up to date. }
+    FDecFullRebuilds: Integer;
+    FDecPatches: Integer;
+    FDecSamplesScanned: Int64;
 
     function BucketOfIndex(AIndex: Integer): Integer;
     procedure BuildDecimated(const AParams: TChartFastRenderParams);
@@ -183,6 +187,18 @@ type
     property LastDrawnVertexCount: Integer read FLastDrawn;
     { True when X is non-decreasing, which decimation requires. }
     property XAscending: Boolean read FXAscending;
+
+    { How the pixel-column reduction has been maintained since the counters
+      were last reset.  A full rebuild costs O(visible samples); a patch
+      costs only the columns whose samples moved.  While animating, the
+      patches should be doing the work - if the rebuilds climb instead,
+      something is invalidating the reduction every frame. }
+    property DecimationFullRebuilds: Integer read FDecFullRebuilds;
+    property DecimationPatches: Integer read FDecPatches;
+    { Samples the reduction has actually read: the honest measure of
+      whether a redraw touches everything or only what changed. }
+    property DecimationSamplesScanned: Int64 read FDecSamplesScanned;
+    procedure ResetDecimationCounters;
     property SampleCount: Integer read FCount;
   published
     property AxisIndexX;
@@ -535,6 +551,7 @@ begin
     if s <= e then begin
       minI := s;
       maxI := s;
+      FDecSamplesScanned := FDecSamplesScanned + (e - s + 1);
       p := @FData[s];
       for i := s to e do begin
         if p.Y < FData[minI].Y then minI := i;
@@ -647,15 +664,25 @@ end;
 {$IFDEF TA_RANGE_WAS_ON}{$R+}{$UNDEF TA_RANGE_WAS_ON}{$ENDIF}
 {$IFDEF TA_OVERFLOW_WAS_ON}{$Q+}{$UNDEF TA_OVERFLOW_WAS_ON}{$ENDIF}
 
+procedure TFastLineSeries.ResetDecimationCounters;
+begin
+  FDecFullRebuilds := 0;
+  FDecPatches := 0;
+  FDecSamplesScanned := 0;
+end;
+
 procedure TFastLineSeries.UpdateDecimation(
   const AParams: TChartFastRenderParams);
 begin
   // Full rebuild only when the data or the mapping changed wholesale;
   // otherwise patch just the columns whose values moved.
   if (FDecVersion <> FDataVersion) or (FDecWidth <> AParams.Rect.Width) or
-     (FDecXMin <> AParams.XMin) or (FDecXMax <> AParams.XMax) then
-    BuildDecimated(AParams)
+     (FDecXMin <> AParams.XMin) or (FDecXMax <> AParams.XMax) then begin
+    Inc(FDecFullRebuilds);
+    BuildDecimated(AParams);
+  end
   else if FDecDirtyLo >= 0 then begin
+    Inc(FDecPatches);
     RebuildBuckets(FDecDirtyLo, FDecDirtyHi);
     CompactDecimated;
     FDecDirtyLo := -1;

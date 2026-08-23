@@ -54,6 +54,10 @@ private:	// User declarations
 	double FRenderMs;		// last measured render cost, vsync off
 	double FLoadMs;			// time the last load took
 	int FGpuChanges;		// OnGPUChanged firings, for the self-test
+	// Samples the animation moves per tick.  0 means the old default of a
+	// two-hundredth of the series, which at ten million is 50,000 a frame -
+	// a deliberately heavy load, not what a real animation does.
+	int FAnimSpan;
 	UnicodeString FGpuChangeLog;
 
 	void __fastcall LoadSamples(int ACount);
@@ -75,7 +79,8 @@ public:		// User declarations
 	// once with it on, and write what happened to AFile.  Same idea as
 	// ChartDemo's --render switch, so the demo can be verified without a
 	// person watching it.
-	void __fastcall SelfTest(int ACount, const UnicodeString AFile);
+	void __fastcall SelfTest(int ACount, const UnicodeString AFile,
+		int AAnimSpan = 0);
 };
 //---------------------------------------------------------------------------
 extern PACKAGE TMainForm *MainForm;

@@ -86,7 +86,9 @@ int WINAPI _tWinMain(HINSTANCE, HINSTANCE, LPTSTR, int)
 			MainForm->Top = -32000;
 			MainForm->Show();
 			Application->ProcessMessages();
-			MainForm->SelfTest(count, outFile);
+			int animSpan = (ParamCount() >= 4)
+				? StrToIntDef(ParamStr(4), 0) : 0;
+			MainForm->SelfTest(count, outFile, animSpan);
 			// Shut down the same way the interactive run does.  Returning
 			// straight out of _tWinMain without ever entering the message
 			// loop tears the VCL down in an order it does not expect, and

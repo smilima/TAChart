@@ -14,9 +14,24 @@
 #include <vcl.h>
 #pragma hdrstop
 #include <tchar.h>
+#include <shellapi.h>
 // USEFORM alone leaves TMainForm incomplete; the self-test calls its
 // members, so the header is needed here too.
 #include "MainUnit.h"
+#include "TAGPU.hpp"
+//---------------------------------------------------------------------------
+//  Ask for the discrete GPU on a switchable-graphics laptop.
+//
+//  The NVIDIA and AMD drivers look for these exported symbols in the
+//  *executable* when the process starts, before any OpenGL call, and hand it
+//  the high-performance adapter.  It has to be the exe: a symbol exported
+//  from a package or DLL is not what the driver inspects, so TAChart cannot
+//  do this on an application's behalf.
+//---------------------------------------------------------------------------
+extern "C" {
+	__declspec(dllexport) DWORD NvOptimusEnablement = 0x00000001;
+	__declspec(dllexport) int AmdPowerXpressRequestHighPerformance = 1;
+}
 //---------------------------------------------------------------------------
 USEFORM("MainUnit.cpp", MainForm);
 //---------------------------------------------------------------------------
@@ -26,6 +41,25 @@ int WINAPI _tWinMain(HINSTANCE, HINSTANCE, LPTSTR, int)
 	{
 		Application->Initialize();
 		Application->MainFormOnTaskBar = true;
+
+		// Pick the most capable adapter before anything creates a GL context.
+		// Windows resolves which GPU a process gets at process start, so a
+		// preference set now cannot affect this run - the only way to act on it
+		// is to start again.  --relaunched makes that happen at most once.
+		bool relaunched = false;
+		for (int i = 1; i <= ParamCount(); ++i)
+			if (SameText(ParamStr(i), "--relaunched")) relaunched = true;
+
+		if (!relaunched && Tagpu::PreferBestGPU(Tagpu::HostExecutablePath()))
+		{
+			UnicodeString args;
+			for (int i = 1; i <= ParamCount(); ++i)
+				args += "\"" + ParamStr(i) + "\" ";
+			args += "--relaunched";
+			ShellExecute(0, L"open", ParamStr(0).c_str(), args.c_str(),
+				ExtractFilePath(ParamStr(0)).c_str(), SW_SHOWNORMAL);
+			return 0;
+		}
 
 		if ((ParamCount() >= 1) && SameText(ParamStr(1), "--selftest"))
 		{

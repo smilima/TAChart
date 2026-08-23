@@ -23,6 +23,7 @@
 #include "TAChartGL.hpp"
 #include "TAFastSeries.hpp"
 #include "TAGLContext.hpp"
+#include "TAGPU.hpp"
 //---------------------------------------------------------------------------
 class TMainForm : public TForm
 {
@@ -52,6 +53,10 @@ private:	// User declarations
 
 	void __fastcall LoadSamples(int ACount);
 	void __fastcall Redraw();
+	// Averaged repaint time.  A single frame is not a measurement: the first
+	// frame after a context comes up pays driver warm-up, which on a discrete
+	// adapter is large enough to make it look slower than the integrated one.
+	double __fastcall MeasureRepaints(int ACount);
 	void __fastcall UpdateStats();
 	int __fastcall SelectedCount();
 public:		// User declarations

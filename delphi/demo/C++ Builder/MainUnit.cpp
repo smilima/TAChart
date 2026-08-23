@@ -112,8 +112,40 @@ void __fastcall TMainForm::Redraw()
 }
 
 //---------------------------------------------------------------------------
+double __fastcall TMainForm::MeasureRepaints(int ACount)
+{
+	// Note this is wall-clock per frame including SwapBuffers, so once the
+	// chart is drawing faster than the display refreshes it measures vsync
+	// rather than rendering, and stops separating cheap work from cheaper.
+	// It is the honest number for "frames the window can present", which is
+	// what an interactive chart is limited by.
+	for (int i = 0; i < 3; ++i) {          // warm-up, not measured
+		TAChartGL1->Repaint();
+		Application->ProcessMessages();
+	}
+	double t0 = NowMs();
+	for (int i = 0; i < ACount; ++i) {
+		TAChartGL1->Repaint();
+		Application->ProcessMessages();
+	}
+	FFrameMs = (NowMs() - t0) / ACount;
+	UpdateStats();
+	return FFrameMs;
+}
+
+//---------------------------------------------------------------------------
 void __fastcall TMainForm::UpdateStats()
 {
+	Tagpu::TChartAdapterInfo best;
+	UnicodeString gpuLine;
+	if (Tagpu::BestAdapter(best)) {
+		bool onIt = TAChartGL1->OpenGLActive() && TAChartGL1->GLContext != NULL &&
+			Tagpu::RendererMatchesAdapter(TAChartGL1->GLContext->Renderer, best);
+		gpuLine = "best adapter: " + best.Description +
+			(onIt ? UnicodeString("  (in use)")
+				  : UnicodeString("  (NOT in use - relaunch to switch)"));
+	}
+
 	UnicodeString renderer;
 	if (TAChartGL1->OpenGLActive() && TAChartGL1->GLContext != NULL)
 		renderer = "OpenGL " + TAChartGL1->GLContext->Version +
@@ -146,7 +178,7 @@ void __fastcall TMainForm::UpdateStats()
 		"      vertices drawn " + FormatFloat("#,##0", (double)drawn) +
 		" ("                 + reduction + ")" +
 		"      vertex buffer: " + vbo + "\r\n" +
-		"repaint "           + FormatFloat("0.00", FFrameMs) + " ms" +
+		"frame "             + FormatFloat("0.00", FFrameMs) + " ms (incl. swap)" +
 		"      last load "   + FormatFloat("0", FLoadMs) + " ms" +
 		"      X ascending: " + UnicodeString(Series->XAscending ? "yes" : "no");
 }
@@ -236,14 +268,14 @@ void __fastcall TMainForm::SelfTest(int ACount, const UnicodeString AFile)
 
 	chkDecimate->Checked = false;
 	Series->Decimate = false;
-	Redraw();
+	MeasureRepaints(20);
 	int fullVerts = Series->LastDrawnVertexCount;
 	double fullMs = FFrameMs;
 	bool vbo = Series->UsingVBO();
 
 	chkDecimate->Checked = true;
 	Series->Decimate = true;
-	Redraw();
+	MeasureRepaints(20);
 	int decVerts = Series->LastDrawnVertexCount;
 	double decMs = FFrameMs;
 
@@ -264,7 +296,8 @@ void __fastcall TMainForm::SelfTest(int ACount, const UnicodeString AFile)
 		Series->XAscending ? "yes" : "no"));
 	log->Add("fullVertices   = " + IntToStr(fullVerts));
 	log->Add("fullUsingVBO   = " + UnicodeString(vbo ? "yes" : "no"));
-	log->Add("fullFrameMs    = " + FormatFloat("0.00", fullMs));
+	log->Add("fullFrameMs    = " + FormatFloat("0.00", fullMs) +
+		"   (wall clock incl. SwapBuffers; vsync-bound once under ~8 ms)");
 	log->Add("decVertices    = " + IntToStr(decVerts));
 	log->Add("decFrameMs     = " + FormatFloat("0.00", decMs));
 	log->Add("animFrameMs    = " + FormatFloat("0.00", animMs));

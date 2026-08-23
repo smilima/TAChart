@@ -55,9 +55,19 @@ type
     Description: string;    // e.g. 'NVIDIA GeForce RTX 5050 Laptop GPU'
     DriverVersion: string;
     DriverDate: string;
-    { True for adapters whose description matches a known discrete vendor
-      family. A heuristic for presentation only - never branch behaviour on
-      it, because the driver, not this unit, resolves the preference. }
+    { PCI vendor: $10DE NVIDIA, $1002/$1022 AMD, $8086 Intel. }
+    VendorId: Word;
+    { Bytes of memory belonging to the adapter itself.  Windows records this
+      only for adapters that have their own memory, so a non-zero value is
+      what really separates a discrete adapter from an integrated one -
+      including an Intel Arc, which a vendor-name test gets wrong. }
+    DedicatedMemory: UInt64;
+    { True when the adapter has dedicated memory.  Unlike the old name test
+      this comes from the driver, so it can be branched on. }
+    IsDiscrete: Boolean;
+    { Ranking score, larger is more capable.  See RankAdapters. }
+    Score: UInt64;
+    { Retained for source compatibility; now mirrors IsDiscrete. }
     LikelyDiscrete: Boolean;
   end;
   TChartAdapterInfoArray = array of TChartAdapterInfo;
@@ -75,6 +85,31 @@ function HasSwitchableGraphics: Boolean;
 { The running executable. At design time this is the IDE, not the application
   being designed - see SetGPUPreference. }
 function HostExecutablePath: string;
+
+{ Every adapter, most capable first.  Ranked on what the driver reports -
+  dedicated memory, then vendor class - rather than on the adapter name. }
+function RankAdapters: TChartAdapterInfoArray;
+
+{ The most capable adapter.  False when none could be read at all. }
+function BestAdapter(out AAdapter: TChartAdapterInfo): Boolean;
+
+{ True when AGLRenderer - what OpenGL reports for the context in use - names
+  the same adapter as AAdapter.  Drivers decorate the renderer string
+  ('... /PCIe/SSE2'), so the comparison is deliberately lenient. }
+function RendererMatchesAdapter(const AGLRenderer: string;
+  const AAdapter: TChartAdapterInfo): Boolean;
+
+{ Asks Windows to run AExePath on the most capable adapter.
+
+  Returns True when the preference had to be changed, which also means the
+  running process is still on the old adapter: Windows resolves this at
+  process start, so only the next launch picks it up.  Returns False when the
+  preference was already right, or when there is nothing to choose between.
+
+  AExePath must be the application's own executable.  At design time
+  HostExecutablePath is the IDE, so a design-time caller has to pass the
+  project's output path rather than setting a preference for bds.exe. }
+function PreferBestGPU(const AExePath: string): Boolean;
 
 function GetGPUPreference(const AExePath: string): TChartGPUPreference;
 
@@ -98,6 +133,63 @@ const
   DisplayClassKey =
     'SYSTEM\CurrentControlSet\Control\Class\{4d36e968-e325-11ce-bfc1-08002be10318}';
   PreferenceKey = 'Software\Microsoft\DirectX\UserGpuPreferences';
+
+//------------------------------------------------------------------------------
+{ 'PCI\VEN_10DE&DEV_2D98&...' -> $10DE.  Case varies between entries. }
+function ParseVendorId(const AMatchingDeviceId: string): Word;
+var
+  S: string;
+  P: Integer;
+begin
+  Result := 0;
+  S := UpperCase(AMatchingDeviceId);
+  P := Pos('VEN_', S);
+  if P = 0 then
+    Exit;
+  Inc(P, 4);
+  if Length(S) < P + 3 then
+    Exit;
+  Result := Word(StrToIntDef('$' + Copy(S, P, 4), 0));
+end;
+
+//------------------------------------------------------------------------------
+{ Memory belonging to the adapter itself, or 0 when it has none.
+
+  Only qwMemorySize answers this.  MemorySize looks like the same thing and is
+  not: Windows writes it for integrated adapters too, reporting the system
+  memory they borrow - this machine's Intel part claims 2 GB that way - so
+  treating it as dedicated memory would classify every integrated adapter as
+  discrete.  It is deliberately not consulted.
+
+  The value is a REG_QWORD, which TRegistry has no reader for, so it is
+  fetched through the API.  Some drivers write it as REG_BINARY instead. }
+function ReadDedicatedMemory(AReg: TRegistry): UInt64;
+const
+  VALUE_NAME = 'HardwareInformation.qwMemorySize';
+  REG_QWORD_ = 11;
+var
+  DataType, Size: DWORD;
+  Buf: UInt64;
+begin
+  Result := 0;
+  Buf := 0;
+  Size := SizeOf(Buf);
+  DataType := 0;
+  if RegQueryValueEx(AReg.CurrentKey, PChar(VALUE_NAME), nil, @DataType,
+       PByte(@Buf), @Size) <> ERROR_SUCCESS then
+    Exit;
+  case DataType of
+    REG_QWORD_:
+      Result := Buf;
+    REG_BINARY:
+      if Size >= SizeOf(UInt64) then
+        Result := Buf
+      else if Size >= SizeOf(Cardinal) then
+        Result := PCardinal(@Buf)^;
+    REG_DWORD:
+      Result := PCardinal(@Buf)^;
+  end;
+end;
 
 //------------------------------------------------------------------------------
 function LooksDiscrete(const ADescription: string): Boolean;
@@ -151,7 +243,14 @@ begin
           Info.DriverVersion := Reg.ReadString('DriverVersion');
         if Reg.ValueExists('DriverDate') then
           Info.DriverDate := Reg.ReadString('DriverDate');
-        Info.LikelyDiscrete := LooksDiscrete(Desc);
+        if Reg.ValueExists('MatchingDeviceId') then
+          Info.VendorId := ParseVendorId(Reg.ReadString('MatchingDeviceId'));
+        Info.DedicatedMemory := ReadDedicatedMemory(Reg);
+        { Dedicated memory is the driver's own answer, and the reliable one.
+          The name test only stands in for an older discrete part that records
+          no qwMemorySize at all. }
+        Info.IsDiscrete := (Info.DedicatedMemory > 0) or LooksDiscrete(Desc);
+        Info.LikelyDiscrete := Info.IsDiscrete;
         SetLength(Result, N + 1);
         Result[N] := Info;
         Inc(N);
@@ -163,6 +262,113 @@ begin
     Keys.Free;
     Reg.Free;
   end;
+end;
+
+//------------------------------------------------------------------------------
+{ How capable an adapter looks, from what the driver records about it.
+
+  Dedicated memory dominates: an adapter with memory of its own is a discrete
+  one, and among discrete adapters more memory tracks the bigger part closely
+  enough for choosing a default.  Vendor only breaks ties between adapters
+  that report the same memory, and only to prefer a vendor that ships discrete
+  parts at all.  Nothing here matches on the marketing name, so a part this
+  code has never heard of still ranks correctly. }
+function ScoreAdapter(const AInfo: TChartAdapterInfo): UInt64;
+const
+  DISCRETE_BASE = UInt64(1) shl 60;
+  VENDOR_BONUS  = UInt64(1) shl 40;
+begin
+  Result := 0;
+  if AInfo.IsDiscrete then
+    Result := Result + DISCRETE_BASE;
+  { Megabytes, so the memory term cannot reach the vendor term. }
+  Result := Result + (AInfo.DedicatedMemory div (1024 * 1024));
+  case AInfo.VendorId of
+    $10DE, $1002, $1022: Result := Result + VENDOR_BONUS;   // NVIDIA, AMD
+  end;
+end;
+
+//------------------------------------------------------------------------------
+function RankAdapters: TChartAdapterInfoArray;
+var
+  I, J: Integer;
+  Tmp: TChartAdapterInfo;
+begin
+  Result := DetectAdapters;
+  for I := 0 to High(Result) do
+    Result[I].Score := ScoreAdapter(Result[I]);
+  // Insertion sort: there are never more than a handful of adapters.
+  for I := 1 to High(Result) do
+  begin
+    Tmp := Result[I];
+    J := I - 1;
+    while (J >= 0) and (Result[J].Score < Tmp.Score) do
+    begin
+      Result[J + 1] := Result[J];
+      Dec(J);
+    end;
+    Result[J + 1] := Tmp;
+  end;
+end;
+
+//------------------------------------------------------------------------------
+function BestAdapter(out AAdapter: TChartAdapterInfo): Boolean;
+var
+  Ranked: TChartAdapterInfoArray;
+begin
+  Ranked := RankAdapters;
+  Result := Length(Ranked) > 0;
+  if Result then
+    AAdapter := Ranked[0]
+  else
+    AAdapter := Default(TChartAdapterInfo);
+end;
+
+//------------------------------------------------------------------------------
+function RendererMatchesAdapter(const AGLRenderer: string;
+  const AAdapter: TChartAdapterInfo): Boolean;
+var
+  R, D: string;
+begin
+  { The driver appends its own decorations, e.g.
+      'NVIDIA GeForce RTX 5050 Laptop GPU/PCIe/SSE2'
+    against a registry description of
+      'NVIDIA GeForce RTX 5050 Laptop GPU'
+    so containment either way is the right test rather than equality. }
+  Result := false;
+  R := UpperCase(Trim(AGLRenderer));
+  D := UpperCase(Trim(AAdapter.Description));
+  if (R = '') or (D = '') then
+    Exit;
+  Result := (Pos(D, R) > 0) or (Pos(R, D) > 0);
+end;
+
+//------------------------------------------------------------------------------
+function PreferBestGPU(const AExePath: string): Boolean;
+var
+  Ranked: TChartAdapterInfoArray;
+  Wanted: TChartGPUPreference;
+begin
+  Result := false;
+  Ranked := RankAdapters;
+  { With one adapter there is nothing to choose, and setting a preference
+    would only be misleading. }
+  if Length(Ranked) < 2 then
+    Exit;
+
+  { Windows takes a class of adapter, not a named one, so the most this can
+    say is 'the high-performance one'.  That is enough: the ranking above is
+    what decides whether the high-performance adapter is actually the better
+    one, and on every switchable-graphics machine it is. }
+  if Ranked[0].IsDiscrete then
+    Wanted := gpHighPerformance
+  else
+    Wanted := gpPowerSaving;
+
+  if GetGPUPreference(AExePath) = Wanted then
+    Exit;
+  SetGPUPreference(AExePath, Wanted);
+  Result := true;
 end;
 
 //------------------------------------------------------------------------------

@@ -102,6 +102,7 @@ contains
   { OpenGL plumbing for the GPU-accelerated rendering path }
   TAGPU in '..\src\TAGPU.pas',
   TAGLContext in '..\src\TAGLContext.pas',
-  TAChartGL in '..\src\TAChartGL.pas';
+  TAChartGL in '..\src\TAChartGL.pas',
+  TAFastSeries in '..\src\TAFastSeries.pas';
 
 end.

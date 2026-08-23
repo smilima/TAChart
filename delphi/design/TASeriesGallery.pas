@@ -49,7 +49,8 @@ implementation
 uses
   System.SysUtils, System.Math, System.UITypes,
   TAChartUtils, TAGeometry, TADrawUtils, TATypes, TASources,
-  TACustomSeries, TASeries, TAMultiSeries, TARadialSeries, TAFuncSeries;
+  TACustomSeries, TASeries, TAMultiSeries, TARadialSeries, TAFuncSeries,
+  TAFastSeries;
 
 type
   { Supplies the event handlers the function-driven series need.  A plain
@@ -167,6 +168,16 @@ begin
       TManhattanSeries(ASeries).AddXY(
         i / 400, Scatter(i, 1) * (1 + 3 * Sqr(Scatter(i, 2))), '',
         MANHATTAN_BANDS[(i div 400) mod Length(MANHATTAN_BANDS)]);
+  end
+
+  else if ASeries is TFastLineSeries then begin
+    // Not a TTAChartSeries - it keeps its own packed samples - so it needs its
+    // own case.  Enough points to look like the dense trace it is built for.
+    TFastLineSeries(ASeries).SetSampleCount(2000);
+    for i := 0 to 1999 do
+      TFastLineSeries(ASeries).SetSample(
+        i, i / 100, 5 + 3 * Sin(i / 55) + 0.8 * Sin(i / 7));
+    TFastLineSeries(ASeries).DataChanged;
   end
 
   else if ASeries is TConstantLine then

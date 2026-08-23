@@ -37,7 +37,7 @@ uses
   TARadialSeries, TAFuncSeries, TASources, TAIntervalSources, TADbSource,
   TAStyles, TATools, TADataTools, TATransformations, TAChartListbox, TAChartCombos,
   TAChartImageList, TAChartExtentLink, TALegendPanel, TANavigation,
-  TAChartAxis, TAChartGL,
+  TAChartAxis, TAChartGL, TAFastSeries,
   // design time
   TASeriesEditorUnit, TAToolEditors, TATransformsEditor, TASeriesPropEditors,
   TASubcomponentsEditor, TADataPointsEditor;
@@ -56,6 +56,7 @@ end;
 procedure RegisterSeriesClasses;
 begin
   SafeRegisterClass(TTALineSeries);
+  SafeRegisterClass(TFastLineSeries);
   SafeRegisterClass(TTAAreaSeries);
   SafeRegisterClass(TTABarSeries);
   SafeRegisterClass(TTAPieSeries);
@@ -76,6 +77,7 @@ begin
 
   RegisterNoIcon([
     TTALineSeries,
+    TFastLineSeries,
     TTAAreaSeries,
     TTABarSeries,
     TTAPieSeries,

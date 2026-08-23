@@ -18,6 +18,7 @@ resourcestring
   rsFunctionSeries = 'Function series';
   rsLeastSquaresFitSeries = 'Least-squares fit series';
   rsLineSeries = 'Line series';
+  rsFastLineSeries = 'Fast line series';
   rsManhattanPlotSeries = 'Manhattan plot series';
   rsOpenHighLowCloseSeries = 'Open-high-low-close series';
   rsParametricCurveSeries = 'Parametric curve series';

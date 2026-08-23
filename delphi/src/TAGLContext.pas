@@ -349,19 +349,38 @@ end;
 procedure TChartGLContext.ReadInfo;
 var
   P: MarshaledAString;
+  PrevDC: HDC;
+  PrevRC: HGLRC;
+  Switched: Boolean;
 begin
   if FInfoRead then
     Exit;
-  FInfoRead := True;
-  P := MarshaledAString(glGetString(GL_RENDERER));
-  if P <> nil then
-    FRenderer := string(AnsiString(P));
-  P := MarshaledAString(glGetString(GL_VERSION));
-  if P <> nil then
-    FVersion := string(AnsiString(P));
-  P := MarshaledAString(glGetString(GL_VENDOR));
-  if P <> nil then
-    FVendor := string(AnsiString(P));
+
+  { glGetString only answers for the *current* context, and returns nil
+    otherwise. Making this context current here rather than trusting the
+    caller to have done it is what stops the strings being cached empty -
+    which is what happened when the first query came from a window that had
+    not painted yet. }
+  PrevDC := wglGetCurrentDC;
+  PrevRC := wglGetCurrentContext;
+  Switched := (PrevRC <> FRC) and MakeCurrent;
+  try
+    P := MarshaledAString(glGetString(GL_RENDERER));
+    if P <> nil then
+      FRenderer := string(AnsiString(P));
+    P := MarshaledAString(glGetString(GL_VERSION));
+    if P <> nil then
+      FVersion := string(AnsiString(P));
+    P := MarshaledAString(glGetString(GL_VENDOR));
+    if P <> nil then
+      FVendor := string(AnsiString(P));
+    { Only remember the answer once there is one, so a query made too early
+      does not poison the cache for the life of the context. }
+    FInfoRead := (FRenderer <> '') or (FVersion <> '') or (FVendor <> '');
+  finally
+    if Switched and (PrevRC <> 0) then
+      wglMakeCurrent(PrevDC, PrevRC);
+  end;
 end;
 
 //------------------------------------------------------------------------------

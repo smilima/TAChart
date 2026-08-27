@@ -75,6 +75,17 @@ if not errorlevel 1 (
   exit /b 1
 )
 
+rem --- 0. Is what is installed built from the current source? ---------------
+echo.
+echo Freshness check:
+set "STALE="
+for /f "delims=" %%L in ('powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0checkstale.ps1" -CommonDir "%BDSCOMMONDIR%" -Suffix "%SUFFIX%" -SourceRoot "%HERE%.." 2^>nul') do (
+  echo %%L
+  echo %%L | find /i "BEHIND" >nul && set "STALE=1"
+  echo %%L | find /i "NEWER THAN" >nul && set "STALE=1"
+  echo %%L | find /i "not built" >nul && set "STALE=1"
+)
+
 rem --- 1. Register the design-time package ------------------------------------
 set "KP=HKCU\Software\Embarcadero\BDS\%BDSVER%\Known Packages"
 reg add "%KP%" /v "%DTBPL%" /t REG_SZ /d "TAChart for Delphi and C++Builder - design time" /f >nul
@@ -102,6 +113,12 @@ for %%P in (Win32 Win64 Win64x) do (
 )
 
 if not defined MISSING (
+  if defined STALE (
+    echo.
+    echo Registered and the library path is set, but see the freshness check
+    echo above - rebuild before using the components.
+    exit /b 3
+  )
   echo.
   echo All set.  Start the IDE.
   exit /b 0

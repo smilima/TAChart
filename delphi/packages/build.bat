@@ -97,6 +97,20 @@ echo.
 echo Built %PLATFORMS%.
 echo   BPLs -^> %BDSCOMMONDIR%\Bpl
 echo   DCPs -^> %BDSCOMMONDIR%\Dcp
+rem  A build can report success per project and still leave something behind -
+rem  most often because the IDE held a BPL and only the .lib was written.  Say
+rem  so here rather than let it surface later as a missing entry point.
+for %%V in ("%BDSCOMMONDIR%") do set "BDSVER=%%~nxV"
+set "SUFFIX=!BDSVER:.=!"
+echo.
+echo Freshness check:
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0checkstale.ps1" -CommonDir "%BDSCOMMONDIR%" -Suffix "!SUFFIX!" -SourceRoot "%~dp0.." 2>nul
+if errorlevel 1 (
+  echo.
+  echo BUILD INCOMPLETE - see above.
+  exit /b 1
+)
+
 echo.
 echo To use the components in the IDE, the design-time package must also be
 echo registered and the library path set - run install.bat once per machine.
